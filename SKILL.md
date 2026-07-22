@@ -27,7 +27,7 @@ Write a compact `campaign-config.json` in the run workspace. Do not hardcode one
 4. Search every in-scope platform with a 48-hour overlap and poll known official/partner channels. Keep late-indexed older candidates eligible.
 5. Open canonical item pages and evaluate title, caption/body, visible media context, product links, transcript, and comments. Include both official and non-official content.
 6. Save a compact source snapshot. Keep unavailable metrics null; use zero only when the item page explicitly shows zero.
-7. Run `scripts/delta_state.ps1 -Mode Diff`. Send only new items, changed metrics, new/changed comments, transcript hit windows, and relevance edge cases to the model.
+7. Run the bundled delta helper in `scripts/delta_state.py` or its PowerShell fallback. Send only new items, changed metrics, new/changed comments, transcript hit windows, and relevance edge cases to the model.
 8. Refresh Views/Plays, Likes/Reactions, and Comments for every tracked URL. Fetch comment bodies only when count/IDs change, plus a periodic full audit.
 9. Collect YouTube subtitles for new items, transcript gaps, or changed fingerprints. Preserve timestamped evidence; never count transcript text as audience comments.
 10. Analyze only real available comments. Produce counts, ratios, bilingual themes, concerns, and an evidence-based content-level sentiment.

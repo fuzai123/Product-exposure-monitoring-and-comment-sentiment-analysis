@@ -7,7 +7,7 @@ This package follows the open Agent Skills layout: one directory containing `SKI
 Give the GitHub URL to an agent with terminal/file access and say:
 
 ```text
-Install this Agent Skill in your supported user-level skills directory, then use it to monitor [product name] across the web and analyze comments. Update [tracker URL]. Ask me only for missing campaign details or login approval.
+Install and use this Agent Skill: https://github.com/fuzai123/product-global-exposure-monitoring-comment-analysis. Monitor [product name] across the web, analyze comments, and update [tracker URL]. Ask me only for missing campaign details or login approval.
 ```
 
 After installation, use this prompt:
@@ -20,20 +20,20 @@ Use product-global-exposure-monitoring-comment-analysis. Monitor [product], incl
 
 | Agent application | Market | Recommended location or command | Invocation |
 |---|---|---|---|
-| OpenAI Codex | International | `~/.codex/skills/<skill-name>/` or shared `~/.agents/skills/<skill-name>/` | `$product-global-exposure-monitoring-comment-analysis` or natural language |
-| Anthropic Claude Code | International | `~/.claude/skills/<skill-name>/` or `.claude/skills/<skill-name>/` | `/product-global-exposure-monitoring-comment-analysis` or natural language |
-| GitHub Copilot and VS Code Agent | International | `~/.agents/skills/<skill-name>/`, `~/.copilot/skills/<skill-name>/`, or `.github/skills/<skill-name>/` | Natural language; Copilot loads matching skills |
-| Google Gemini CLI | International | `gemini skills install <GitHub URL>` or `~/.agents/skills/<skill-name>/` | Natural language; inspect with `/skills list` |
-| Cursor Agent | International | `.agents/skills/<skill-name>/` or `.cursor/skills/<skill-name>/` | `/<skill-name>` or natural language |
-| OpenCode | International | `~/.agents/skills/<skill-name>/` or `.opencode/skills/<skill-name>/` | Natural language through the native skill tool |
-| Kimi Code CLI | Chinese | `~/.agents/skills/<skill-name>/` or `~/.kimi-code/skills/<skill-name>/` | `/skill:<skill-name>` or natural language |
-| Qwen Code | Chinese | `~/.qwen/skills/<skill-name>/` or `.qwen/skills/<skill-name>/` | `/<skill-name>` or natural language |
-| Tencent CodeBuddy Code | Chinese | `~/.codebuddy/skills/<skill-name>/` or `.codebuddy/skills/<skill-name>/` | Natural language or slash menu |
+| OpenAI Codex | International | `~/.codex/skills/product-global-exposure-monitoring-comment-analysis/` or shared `~/.agents/skills/product-global-exposure-monitoring-comment-analysis/` | `$product-global-exposure-monitoring-comment-analysis` or natural language |
+| Anthropic Claude Code | International | `~/.claude/skills/product-global-exposure-monitoring-comment-analysis/` | `/product-global-exposure-monitoring-comment-analysis` or natural language |
+| GitHub Copilot and VS Code Agent | International | `~/.agents/skills/product-global-exposure-monitoring-comment-analysis/` or `.github/skills/product-global-exposure-monitoring-comment-analysis/` | Natural language; Copilot loads matching skills |
+| Google Gemini CLI | International | `gemini skills install https://github.com/fuzai123/product-global-exposure-monitoring-comment-analysis` | Natural language; inspect with `/skills list` |
+| Cursor Agent | International | `.agents/skills/product-global-exposure-monitoring-comment-analysis/` or `.cursor/skills/product-global-exposure-monitoring-comment-analysis/` | `/product-global-exposure-monitoring-comment-analysis` or natural language |
+| OpenCode | International | `~/.agents/skills/product-global-exposure-monitoring-comment-analysis/` | Natural language through the native skill tool |
+| Kimi Code CLI | Chinese | `~/.agents/skills/product-global-exposure-monitoring-comment-analysis/` or `~/.kimi-code/skills/product-global-exposure-monitoring-comment-analysis/` | `/skill:product-global-exposure-monitoring-comment-analysis` or natural language |
+| Qwen Code | Chinese | `~/.qwen/skills/product-global-exposure-monitoring-comment-analysis/` | `/product-global-exposure-monitoring-comment-analysis` or natural language |
+| Tencent CodeBuddy Code | Chinese | `~/.codebuddy/skills/product-global-exposure-monitoring-comment-analysis/` | Natural language or slash menu |
 
 The preferred shared install is:
 
 ```bash
-git clone <GitHub URL> ~/.agents/skills/product-global-exposure-monitoring-comment-analysis
+git clone https://github.com/fuzai123/product-global-exposure-monitoring-comment-analysis "$HOME/.agents/skills/product-global-exposure-monitoring-comment-analysis"
 ```
 
 Use a client-specific path from the table when the client does not scan `.agents/skills/`.
