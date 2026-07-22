@@ -1,0 +1,4 @@
+interface:
+  display_name: "产品全网曝光监控及评论分析"
+  short_description: "持续监控产品全网曝光、互动指标、评论情感与趋势日报"
+  default_prompt: "使用 $product-global-exposure-monitoring-comment-analysis 运行一次产品全网曝光监控、评论情感分析和飞书安全更新。"
