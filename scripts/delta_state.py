@@ -102,23 +102,45 @@ def safe_int(value):
         return None
 
 
+def canonical_groups(items: list[dict]) -> tuple[dict[str, list[int]], list[dict]]:
+    groups: dict[str, list[int]] = {}
+    rejected = []
+    for index, item in enumerate(items):
+        url = canonical_url(item.get("url"))
+        if not url:
+            rejected.append(item)
+            continue
+        groups.setdefault(url, []).append(index)
+    return groups, rejected
+
+
 def build_diff(state: dict, items: list[dict]) -> dict:
     known = state.get("items") or {}
+    groups, rejected = canonical_groups(items)
     delta = {
         "generated_at": now_iso(),
+        "baseline_required": not bool(known) and bool(groups),
+        "duplicate_canonical_urls": [
+            {"url": url, "snapshot_indexes": indexes}
+            for url, indexes in groups.items()
+            if len(indexes) > 1
+        ],
         "new_items": [],
         "metric_changes": [],
         "comment_changes": [],
         "transcript_rechecks": [],
         "unchanged_urls": [],
-        "rejected_missing_url": [],
+        "rejected_missing_url": rejected,
     }
+    seen = set()
     for original in items:
         item = dict(original)
         url = canonical_url(item.get("url"))
         if not url:
-            delta["rejected_missing_url"].append(item)
             continue
+        if url in seen:
+            continue
+        seen.add(url)
         old = known.get(url)
         if old is None:
             item["canonical_url"] = url
@@ -161,13 +183,15 @@ def build_diff(state: dict, items: list[dict]) -> dict:
         "comments_changed": len(delta["comment_changes"]),
         "transcript_recheck": len(delta["transcript_rechecks"]),
         "unchanged": len(delta["unchanged_urls"]),
+        "duplicates": len(delta["duplicate_canonical_urls"]),
+        "rejected_missing_url": len(delta["rejected_missing_url"]),
     }
     return delta
 
 
-def commit_state(state: dict, items: list[dict]) -> dict:
+def commit_state(state: dict, items: list[dict], replace: bool = False) -> dict:
     stamp = now_iso()
-    known = dict(state.get("items") or {})
+    known = {} if replace else dict(state.get("items") or {})
     for original in items:
         item = dict(original)
         url = canonical_url(item.get("url"))
@@ -230,7 +254,7 @@ def cleanup_runs(root: Path, success_days: int, failure_hours: int, max_mb: int,
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("mode", choices=("init", "diff", "commit", "cleanup"))
+    result.add_argument("mode", choices=("init", "diff", "commit", "reconcile", "cleanup"))
     result.add_argument("--snapshot", type=Path)
     result.add_argument("--delta", type=Path)
     result.add_argument("--state", type=Path, default=Path(__file__).with_name("state.json"))
@@ -239,6 +263,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--failed-retention-hours", type=int, default=48)
     result.add_argument("--max-size-mb", type=int, default=500)
     result.add_argument("--apply", action="store_true")
+    result.add_argument("--verified", action="store_true", help="Confirms exact tracker readback before state mutation.")
     return result
 
 
@@ -248,7 +273,7 @@ def main() -> int:
         if not args.state.exists():
             write_json(args.state, empty_state())
         output = {"mode": "init", "state": str(args.state), "exists": True}
-    elif args.mode in {"diff", "commit"}:
+    elif args.mode in {"diff", "commit", "reconcile"}:
         if args.snapshot is None:
             raise ValueError("--snapshot is required")
         state = read_json(args.state, empty_state())
@@ -258,9 +283,19 @@ def main() -> int:
             if args.delta:
                 write_json(args.delta, output)
         else:
-            updated = commit_state(state, items)
+            if not args.verified:
+                raise ValueError("--verified is required for persistent state mutation")
+            if args.mode == "commit" and not (state.get("items") or {}) and items:
+                raise ValueError("baseline_required: use verified reconcile with a full tracker snapshot")
+            groups, rejected = canonical_groups(items)
+            duplicates = [url for url, indexes in groups.items() if len(indexes) > 1]
+            if duplicates or rejected:
+                raise ValueError(
+                    f"snapshot_invalid: duplicate_canonical_urls={len(duplicates)}, rejected_missing_url={len(rejected)}"
+                )
+            updated = commit_state(state, items, replace=args.mode == "reconcile")
             write_json(args.state, updated)
-            output = {"mode": "commit", "items": len(updated["items"]), "state": str(args.state)}
+            output = {"mode": args.mode, "items": len(updated["items"]), "state": str(args.state)}
     else:
         output = cleanup_runs(args.runs_root, args.successful_retention_days, args.failed_retention_hours, args.max_size_mb, args.apply)
     print(json.dumps(output, ensure_ascii=False, indent=2))

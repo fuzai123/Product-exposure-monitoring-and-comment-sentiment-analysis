@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Init', 'Diff', 'Commit', 'Cleanup')]
+    [ValidateSet('Init', 'Diff', 'Commit', 'Reconcile', 'Cleanup')]
     [string]$Mode = 'Init',
     [string]$SnapshotPath,
     [string]$DeltaPath,
@@ -8,7 +8,8 @@ param(
     [int]$SuccessfulRetentionDays = 7,
     [int]$FailedRetentionHours = 48,
     [int]$MaxSizeMB = 500,
-    [switch]$Apply
+    [switch]$Apply,
+    [switch]$Verified
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,7 +102,7 @@ if ($Mode -eq 'Init') {
     exit 0
 }
 
-if ($Mode -eq 'Diff' -or $Mode -eq 'Commit') {
+if ($Mode -in @('Diff', 'Commit', 'Reconcile')) {
     $state = Read-State
     $stateItems = ConvertTo-Hashtable $state.items
     $snapshotItems = Read-SnapshotItems
@@ -110,6 +111,8 @@ if ($Mode -eq 'Diff' -or $Mode -eq 'Commit') {
 if ($Mode -eq 'Diff') {
     $delta = [ordered]@{
         generated_at = (Get-Date).ToString('o')
+        baseline_required = ($stateItems.Count -eq 0 -and @($snapshotItems).Count -gt 0)
+        duplicate_canonical_urls = New-Object Collections.Generic.List[object]
         new_items = New-Object Collections.Generic.List[object]
         metric_changes = New-Object Collections.Generic.List[object]
         comment_changes = New-Object Collections.Generic.List[object]
@@ -117,9 +120,24 @@ if ($Mode -eq 'Diff') {
         unchanged_urls = New-Object Collections.Generic.List[string]
         rejected_missing_url = New-Object Collections.Generic.List[object]
     }
+    $canonicalIndexes = @{}
+    for ($index = 0; $index -lt @($snapshotItems).Count; $index++) {
+        $candidateUrl = Get-CanonicalUrl $snapshotItems[$index].url
+        if (-not $candidateUrl) { continue }
+        if (-not $canonicalIndexes.ContainsKey($candidateUrl)) { $canonicalIndexes[$candidateUrl] = New-Object Collections.Generic.List[int] }
+        $canonicalIndexes[$candidateUrl].Add($index)
+    }
+    foreach ($entry in $canonicalIndexes.GetEnumerator()) {
+        if ($entry.Value.Count -gt 1) {
+            $delta.duplicate_canonical_urls.Add([pscustomobject]@{ url = $entry.Key; snapshot_indexes = @($entry.Value) })
+        }
+    }
+    $seenUrls = @{}
     foreach ($item in $snapshotItems) {
         $url = Get-CanonicalUrl $item.url
         if (-not $url) { $delta.rejected_missing_url.Add($item); continue }
+        if ($seenUrls.ContainsKey($url)) { continue }
+        $seenUrls[$url] = $true
         $old = $stateItems[$url]
         if ($null -eq $old) {
             $item | Add-Member -NotePropertyName canonical_url -NotePropertyValue $url -Force
@@ -156,13 +174,27 @@ if ($Mode -eq 'Diff') {
             $delta.unchanged_urls.Add($url)
         }
     }
-    $delta.summary = [ordered]@{ scanned = @($snapshotItems).Count; new = $delta.new_items.Count; metric_changed = $delta.metric_changes.Count; comments_changed = $delta.comment_changes.Count; transcript_recheck = $delta.transcript_rechecks.Count; unchanged = $delta.unchanged_urls.Count }
+    $delta.summary = [ordered]@{ scanned = @($snapshotItems).Count; new = $delta.new_items.Count; metric_changed = $delta.metric_changes.Count; comments_changed = $delta.comment_changes.Count; transcript_recheck = $delta.transcript_rechecks.Count; unchanged = $delta.unchanged_urls.Count; duplicates = $delta.duplicate_canonical_urls.Count; rejected_missing_url = $delta.rejected_missing_url.Count }
     if ($DeltaPath) { Write-JsonFile $delta $DeltaPath }
     $delta | ConvertTo-Json -Depth 20
     exit 0
 }
 
-if ($Mode -eq 'Commit') {
+if ($Mode -in @('Commit', 'Reconcile')) {
+    if (-not $Verified) { throw '-Verified is required for persistent state mutation.' }
+    if ($Mode -eq 'Commit' -and $stateItems.Count -eq 0 -and @($snapshotItems).Count -gt 0) {
+        throw 'baseline_required: use verified Reconcile with a full tracker snapshot.'
+    }
+    $canonicalIndexes = @{}
+    $missingUrls = 0
+    foreach ($candidate in $snapshotItems) {
+        $candidateUrl = Get-CanonicalUrl $candidate.url
+        if (-not $candidateUrl) { $missingUrls++; continue }
+        if ($canonicalIndexes.ContainsKey($candidateUrl)) { throw "snapshot_invalid: duplicate canonical URL $candidateUrl" }
+        $canonicalIndexes[$candidateUrl] = $true
+    }
+    if ($missingUrls -gt 0) { throw "snapshot_invalid: rejected_missing_url=$missingUrls" }
+    if ($Mode -eq 'Reconcile') { $stateItems = @{} }
     $now = (Get-Date).ToString('o')
     foreach ($item in $snapshotItems) {
         $url = Get-CanonicalUrl $item.url
@@ -173,7 +205,7 @@ if ($Mode -eq 'Commit') {
     }
     $newState = [ordered]@{ version = 1; updated_at = $now; last_successful_run = $now; platform_cursors = if ($state.platform_cursors) { $state.platform_cursors } else { @{} }; items = $stateItems }
     Write-JsonFile $newState $StatePath
-    [pscustomobject]@{ mode = 'commit'; items = $stateItems.Count; state = $StatePath } | ConvertTo-Json -Compress
+    [pscustomobject]@{ mode = $Mode.ToLowerInvariant(); items = $stateItems.Count; state = $StatePath } | ConvertTo-Json -Compress
     exit 0
 }
 

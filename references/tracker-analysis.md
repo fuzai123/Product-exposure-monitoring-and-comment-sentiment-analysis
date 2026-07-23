@@ -49,11 +49,22 @@ If charts are configured, preserve exactly the configured chart count and update
 
 ## Feishu write gate
 
-1. Prefer a structured Feishu connector that supports exact range reads/writes and value readback. Otherwise use the host agent's signed-in interactive browser. Open one direct Wiki tab and allow at most 15 seconds for title, sheet tabs, name box, and visible grid content.
+Classify the first failure precisely:
+
+- `runtime_unavailable`: the browser/connector control runtime cannot initialize; Feishu was not reached.
+- `auth_required`: the page is reachable but edit authentication is missing.
+- `page_loading`: the direct Wiki page never becomes usable.
+- `grid_not_interactive`: page chrome loads but the sheet cannot select/read cells.
+- `readback_mismatch`: the requested rectangular range cannot be reproduced exactly.
+- `write_failure`: a changed cell does not match immediate readback.
+
+Only the last five are Feishu/page/session outcomes. Do not report `runtime_unavailable` as “Feishu failed.”
+
+1. Prefer a structured Feishu connector that supports exact range reads/writes and value readback. Otherwise use the host agent's signed-in interactive browser. First verify that the control runtime initializes, then open one direct Wiki tab and allow at most 15 seconds for title, sheet tabs, name box, and visible grid content.
 2. Confirm edit access. A title, login state, formula-bar value, or loading canvas is not sufficient.
 3. Read a real rectangular range from both sheets before any write. Batch baseline reads to at most 20 rows/cells.
 4. If the primary browser fails, try one fresh authenticated browser session once. Do not loop browser recovery.
-5. On failure, leave Feishu and persistent state unchanged and mark the run `blocked_without_mutation`.
+5. On failure, leave Feishu and persistent state unchanged and mark the run `blocked_without_mutation`. A compact read-only discovery snapshot may still be staged for replay if source collection is independently safe.
 
 ## Single-cell write protocol
 
@@ -65,8 +76,13 @@ For every changed field:
 4. Reselect the same address, wait about 250 ms, and read the formula bar.
 5. Require the formula-bar value and visible grid screenshot to agree.
 
-Never paste multiple cells. Validate one rectangular range after each batch. Re-read Total formulas, row alignment, URL uniqueness, reserve rows, chart ranges, and the final changed ranges before accepting the run.
+Never paste multiple cells. Validate one rectangular range after each batch.
+
+Use two acceptance layers:
+
+- Data-sync QA: exact changed-cell readback, row alignment, canonical URL uniqueness, and Total formulas covering numeric rows. Passing this layer permits a verified source-state commit.
+- Presentation QA: reserve rows, Methodology boundary, chart count/ranges, daily summary, and brief/site consistency. Failure here blocks presentation outputs and deployment but does not erase an already verified source-data checkpoint.
 
 ## Downstream gate
 
-Only after successful Feishu QA may the workflow update charts, generate image/text briefs, rebuild a campaign site, deploy it, or commit delta state. If source data and narrative are unchanged, skip site deployment and return a concise no-change status.
+Only after data-sync QA may source state be committed. Only after presentation QA may the workflow update charts, generate image/text briefs, rebuild a campaign site, or deploy it. If source data and narrative are unchanged, skip site deployment and return a concise no-change status.

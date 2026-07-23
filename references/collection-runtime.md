@@ -12,6 +12,25 @@ Use three discovery lanes:
 
 Use a 48-hour overlap around the last successful cursor. Search the full campaign window for late-indexed pages. Persist per-platform cursor, query, access status, and coverage gaps.
 
+Before claiming coverage, build a capability matrix with one row per platform:
+
+- `direct_authenticated`: native API/connector/CLI or logged-in item page can expose canonical content and metrics.
+- `public_direct`: canonical public item pages are readable but comments or metrics may be partial.
+- `indexed_only`: only search-engine or open-web discovery is available.
+- `unavailable`: no safe backend is reachable.
+
+“All-platform search” means every in-scope platform was attempted and its lane/status was recorded. It never means complete coverage when a platform is `indexed_only` or `unavailable`.
+
+## Deterministic backend resolution
+
+Run diagnostics once per run and record the resolved executable and version. For Agent Reach:
+
+1. Try `agent-reach` from `PATH`.
+2. On Windows, try `%USERPROFILE%\.agent-reach-venv\Scripts\agent-reach.exe`.
+3. If neither exists, use host-native tools and mark Agent Reach unavailable.
+
+Do not repeatedly retry a missing backend. An update check is informational and must not silently change the runtime during a monitoring run.
+
 ## Inclusion and identity
 
 Include an item when the product is directly mentioned, visibly shown, discussed in transcript/comments, or linked from the content. Inspect the item body/media context when the title is inconclusive.
@@ -56,6 +75,18 @@ Each item should contain:
 ```
 
 Keep full raw payloads out of model context. Store compact manifests and only changed comment bodies/transcript windows.
+
+## Pending discovery and baseline recovery
+
+Keep committed source state, retryable discovery, and presentation state separate:
+
+- `state.json`: only canonical items whose tracker rows passed exact readback.
+- `pending-snapshot.json`: normalized read-only discovery or metrics collected while the tracker gate was unavailable.
+- `presentation-status.json`: reserve-row, formula, chart, summary, and site QA.
+
+When tracker access recovers, pre-read both sheets, reconcile the pending snapshot against live canonical URLs, and replay only the delta. Do not repeat public discovery merely because a write tool failed.
+
+If committed state is empty while the verified tracker is non-empty, enter `baseline_required`. Export the complete canonical URL/metric set from Sheet1 and run the helper’s verified `reconcile` mode. Do not treat all tracker rows as newly discovered.
 
 ## Token and disk controls
 
